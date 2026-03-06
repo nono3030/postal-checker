@@ -106,9 +106,12 @@ function ScoreBar({ score }) {
 
 function ColumnMapper({ headers, mapping, onMap }) {
   const fields = [
-    { key: "adresse", label: "Adresse / Rue", desc: "Numéro et nom de rue" },
-    { key: "code_postal", label: "Code postal", desc: "Optionnel" },
-    { key: "ville", label: "Ville", desc: "Optionnel" },
+    { key: "adresse", label: "Adresse / Rue (AD3)", desc: "Requis" },
+    { key: "code_postal", label: "Code postal (CPOS)", desc: "Optionnel" },
+    { key: "ville", label: "Ville (BURD)", desc: "Optionnel" },
+    { key: "ncli", label: "Numéro client (NCLI)", desc: "Exporté tel quel" },
+    { key: "nom_prenom", label: "Nom Prénom (AD2)", desc: "Exporté tel quel" },
+    { key: "mailing", label: "Num_Nom_Revue (MAILING)", desc: "Exporté tel quel" },
   ];
   return (
     <div style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: 12, padding: 20, marginBottom: 20 }}>
@@ -146,6 +149,9 @@ function ExportButton({ results, rows, mapping }) {
   const handleExport = () => {
     const sep = ";";
     const exportHeaders = [
+      "NCLI",
+      "NomPrenom",
+      "Num_Nom_Revue",
       "adresse_originale",
       "adresse_normalisee",
       "score",
@@ -163,8 +169,14 @@ function ExportButton({ results, rows, mapping }) {
     rows.forEach((row) => {
       const r = results[row.__index];
       const original = buildQuery(row, mapping);
+      const ncli = mapping.ncli ? (row[mapping.ncli] || "") : "";
+      const nomPrenom = mapping.nom_prenom ? (row[mapping.nom_prenom] || "") : "";
+      const mailing = mapping.mailing ? (row[mapping.mailing] || "") : "";
       if (r && r.result) {
         csvLines.push([
+          `"${ncli}"`,
+          `"${nomPrenom}"`,
+          `"${mailing}"`,
           `"${original}"`,
           `"${r.result.label}"`,
           r.result.score.toFixed(3),
@@ -179,7 +191,7 @@ function ExportButton({ results, rows, mapping }) {
           r.result.lon || "",
         ].join(sep));
       } else {
-        csvLines.push([`"${original}"`, "", "0", "KO", "", "", "", "", "", "", "", ""].join(sep));
+        csvLines.push([`"${ncli}"`, `"${nomPrenom}"`, `"${mailing}"`, `"${original}"`, "", "0", "KO", "", "", "", "", "", "", "", ""].join(sep));
       }
     });
     const blob = new Blob(["\uFEFF" + csvLines.join("\n")], { type: "text/csv;charset=utf-8" });
@@ -231,14 +243,20 @@ export default function App() {
 
   const autoMap = useCallback((hdrs) => {
     const m = {};
-    const adresseKeys = ["adresse", "address", "rue", "street", "voie", "adresse_complete", "full_address", "adresse_postale"];
-    const cpKeys = ["code_postal", "cp", "zip", "zipcode", "postal_code", "postcode", "codepostal"];
-    const villeKeys = ["ville", "city", "commune", "town", "localite"];
+    const adresseKeys = ["ad3", "adresse", "address", "rue", "street", "voie", "adresse_complete", "full_address", "adresse_postale"];
+    const cpKeys = ["cpos", "code_postal", "cp", "zip", "zipcode", "postal_code", "postcode", "codepostal"];
+    const villeKeys = ["burd", "ville", "city", "commune", "town", "localite"];
+    const ncliKeys = ["ncli"];
+    const nomPrenomKeys = ["ad2", "nomp", "nom", "prenom"];
+    const mailingKeys = ["mailing"];
     for (const h of hdrs) {
       const lower = h.toLowerCase().replace(/[\s_-]/g, "");
-      if (!m.adresse && adresseKeys.some((k) => lower.includes(k.replace(/[\s_-]/g, "")))) m.adresse = h;
-      if (!m.code_postal && cpKeys.some((k) => lower.includes(k.replace(/[\s_-]/g, "")))) m.code_postal = h;
-      if (!m.ville && villeKeys.some((k) => lower.includes(k.replace(/[\s_-]/g, "")))) m.ville = h;
+      if (!m.adresse && adresseKeys.some((k) => lower === k.replace(/[\s_-]/g, ""))) m.adresse = h;
+      if (!m.code_postal && cpKeys.some((k) => lower === k.replace(/[\s_-]/g, ""))) m.code_postal = h;
+      if (!m.ville && villeKeys.some((k) => lower === k.replace(/[\s_-]/g, ""))) m.ville = h;
+      if (!m.ncli && ncliKeys.some((k) => lower === k)) m.ncli = h;
+      if (!m.nom_prenom && nomPrenomKeys.some((k) => lower === k)) m.nom_prenom = h;
+      if (!m.mailing && mailingKeys.some((k) => lower === k)) m.mailing = h;
     }
     return m;
   }, []);
@@ -380,7 +398,7 @@ export default function App() {
         </div>
       </div>
 
-      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "28px 32px" }}>
+      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "28px 32px 0" }}>
         {/* UPLOAD */}
         {step === "upload" && (
           <div style={{ maxWidth: 640, margin: "60px auto" }}>
@@ -556,7 +574,7 @@ export default function App() {
                         Stop
                       </button>
                     )}
-                    {!processing && stats.processed > 0 && (
+                    {stats.processed > 0 && (
                       <ExportButton results={results} rows={rows} mapping={mapping} />
                     )}
                   </div>
@@ -624,6 +642,15 @@ export default function App() {
             </div>
           </div>
         )}
+      </div>
+      <div style={{
+        borderTop: "1px solid #1e293b", marginTop: 40, padding: "16px 32px",
+        textAlign: "center", fontSize: 12, color: "#475569",
+      }}>
+        Un problème ? Contactez{" "}
+        <a href="mailto:arnaud.lavesque@propulse-lab.com" style={{ color: "#3b82f6", textDecoration: "none" }}>
+          arnaud.lavesque@propulse-lab.com
+        </a>
       </div>
     </div>
   );
