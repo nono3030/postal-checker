@@ -1,4 +1,27 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+async function fetchTotalAddresses() {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/stats?id=eq.1&select=total_addresses`, {
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+  });
+  const data = await res.json();
+  return data?.[0]?.total_addresses ?? 0;
+}
+
+async function incrementTotalAddresses(count) {
+  await fetch(`${SUPABASE_URL}/rest/v1/rpc/increment_addresses`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ amount: count }),
+  });
+}
 
 const SAMPLE_CSV = `adresse;code_postal;ville
 55 rue du Faubourg Saint-Honoré;75008;Paris
@@ -238,8 +261,13 @@ export default function App() {
   const [progress, setProgress] = useState(0);
   const [fileName, setFileName] = useState("");
   const [dragOver, setDragOver] = useState(false);
+  const [totalAddresses, setTotalAddresses] = useState(null);
   const fileRef = useRef(null);
   const abortRef = useRef(false);
+
+  useEffect(() => {
+    fetchTotalAddresses().then(setTotalAddresses).catch(() => {});
+  }, []);
 
   const autoMap = useCallback((hdrs) => {
     const m = {};
@@ -325,6 +353,12 @@ export default function App() {
       if (i < total - 1) await new Promise((r) => setTimeout(r, 30));
     }
     setProcessing(false);
+    const verified = Object.values(newResults).filter((r) => r.result).length;
+    if (verified > 0) {
+      incrementTotalAddresses(verified).then(() =>
+        fetchTotalAddresses().then(setTotalAddresses).catch(() => {})
+      ).catch(() => {});
+    }
   };
 
   const stopVerification = () => {
@@ -436,6 +470,17 @@ export default function App() {
                 Parcourir…
               </div>
             </div>
+            {totalAddresses !== null && (
+              <div style={{ textAlign: "center", marginTop: 24 }}>
+                <span style={{ fontSize: 13, color: "#64748b" }}>
+                  <span style={{ color: "#34d399", fontWeight: 700, fontSize: 16 }}>
+                    {totalAddresses.toLocaleString("fr-FR")}
+                  </span>
+                  {" "}adresses analysées chez Propulse Lab
+                </span>
+              </div>
+            )}
+
             <div style={{ textAlign: "center", marginTop: 24 }}>
               <button
                 onClick={loadSample}
